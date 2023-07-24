@@ -1,3 +1,4 @@
+@@ -1,13 +1,14 @@
 #' Authorize ROhdsiWebApi to access a protected instance of WebAPI Authorize the ROhdsiWebApi package
 #' to access WebApi on behalf of the user. This can be done with any of the auth methods described
 #' below. authorizeWebApi will use attempt to retrieve, cache, and update a token which will grant
@@ -92,3 +93,27 @@ authorizeWebApi <- function(baseUrl, authMethod, webApiUsername = NULL, webApiPa
 .authWindows <- function(baseUrl, webApiUsername, webApiPassword) {
   checkmate::assertCharacter(webApiUsername, min.chars = 1, len = 1)
   checkmate::assertCharacter(webApiPassword, min.chars = 1, len = 1)
+  authUrl <- paste0(baseUrl, "/user/login/windows")
+  r <- httr::GET(authUrl, httr::authenticate(webApiUsername, webApiPassword, type = "ntlm"))
+  if (length(httr::headers(r)$bearer) < 1)
+    stop("Authentication failed.")
+  authHeader <- paste0("Bearer ", httr::headers(r)$bearer)
+  authHeader
+}
+#' Manually set the authorization http header for a WebAPI baseUrl In some cases the user may want to
+#' manually set the authorization header. An authHeader is associated with a particular baseUrl and
+#' added to to the header of all http requests sent to that url by ROhdsiWebApi.
+#'
+#' @template baseUrl
+#' @param authHeader   A character string containing a Bearer token that will be added to the header of
+#'                     all http requests sent to baseUrl. (e.g. "Bearer
+#'                     lxd9n2nsdsd2329km23mexjop02m23m23mmmsioxiis0")
+#'
+#' @export
+setAuthHeader <- function(baseUrl, authHeader) {
+  checkmate::assertCharacter(baseUrl, min.chars = 1, len = 1)
+  checkmate::assertCharacter(authHeader, min.chars = 1, len = 1)
+  if (is.null(ROWebApiEnv[[baseUrl]]))
+    ROWebApiEnv[[baseUrl]] <- list()
+  ROWebApiEnv[[baseUrl]]$authHeader <- authHeader
+}
