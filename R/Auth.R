@@ -22,10 +22,10 @@
 #'
 #' @export
 authorizeWebApi <- function(baseUrl, authMethod, webApiUsername = NULL, webApiPassword = NULL) {
-
   # check input
   errorMessage <- checkmate::makeAssertCollection()
   checkmate::assertCharacter(baseUrl, len = 1, min.chars = 1, add = errorMessage)
+  checkmate::assertChoice(authMethod, choices = c("db", "ad", "windows"), add = errorMessage)
   checkmate::assertChoice(authMethod, choices = c("db", "ad", "ldap", "windows"), add = errorMessage)
 
   # With windows type we can try NT user authentication
@@ -34,7 +34,6 @@ authorizeWebApi <- function(baseUrl, authMethod, webApiUsername = NULL, webApiPa
     webApiUsername <- ":"
     webApiPassword <- ":"
   }
-
   checkmate::assert(checkmate::checkCharacter(webApiUsername),
                     checkmate::checkNull(webApiUsername),
                     add = errorMessage)
@@ -43,24 +42,20 @@ authorizeWebApi <- function(baseUrl, authMethod, webApiUsername = NULL, webApiPa
                     add = errorMessage)
   checkmate::reportAssertions(errorMessage)
   .checkBaseUrl(baseUrl)
-
   # run appropriate auth. Each auth method must return a header to be added to WebAPI calls.
   authHeader <- switch(authMethod,
                        db = .authDb(baseUrl, webApiUsername, webApiPassword),
                        ad = .authAd(baseUrl, webApiUsername, webApiPassword),
-                       ldap = .authLdap(baseUrl, webApiUsername, webApiPassword),           
+                       ldap = .authLdap(baseUrl, webApiUsername, webApiPassword),
                        windows = .authWindows(baseUrl, webApiUsername, webApiPassword))
 
   # store token in package environment
   setAuthHeader(baseUrl, authHeader)
-
   invisible()
 }
-
 .authDb <- function(baseUrl, webApiUsername, webApiPassword) {
   checkmate::assertCharacter(webApiUsername, min.chars = 1, len = 1)
   checkmate::assertCharacter(webApiPassword, min.chars = 1, len = 1)
-
   authUrl <- paste0(baseUrl, "/user/login/db")
   login <- list(login = webApiUsername, password = webApiPassword)
   r <- httr::POST(authUrl, body = login, encode = "form")
@@ -69,6 +64,18 @@ authorizeWebApi <- function(baseUrl, authMethod, webApiUsername = NULL, webApiPa
   authHeader <- paste0("Bearer ", httr::headers(r)$bearer)
   authHeader
 }
+.authAd <- function(baseUrl, webApiUsername, webApiPassword) {
+  checkmate::assertCharacter(webApiUsername, min.chars = 1, len = 1)
+  checkmate::assertCharacter(webApiPassword, min.chars = 1, len = 1)
+  authUrl <- paste0(baseUrl, "/user/login/ad")
+  login <- list(login = webApiUsername, password = webApiPassword)
+  r <- httr::POST(authUrl, body = login, encode = "form")
+  if (length(httr::headers(r)$bearer) < 1)
+    stop("Authentication failed.")
+  authHeader <- paste0("Bearer ", httr::headers(r)$bearer)
+  authHeader
+}
+
 .authLdap <- function(baseUrl, webApiUsername, webApiPassword) {
   checkmate::assertCharacter(webApiUsername, min.chars = 1, len = 1)
   checkmate::assertCharacter(webApiPassword, min.chars = 1, len = 1)
@@ -82,45 +89,6 @@ authorizeWebApi <- function(baseUrl, authMethod, webApiUsername = NULL, webApiPa
   authHeader
 }
 
-.authAd <- function(baseUrl, webApiUsername, webApiPassword) {
-  checkmate::assertCharacter(webApiUsername, min.chars = 1, len = 1)
-  checkmate::assertCharacter(webApiPassword, min.chars = 1, len = 1)
-
-  authUrl <- paste0(baseUrl, "/user/login/ad")
-  login <- list(login = webApiUsername, password = webApiPassword)
-  r <- httr::POST(authUrl, body = login, encode = "form")
-  if (length(httr::headers(r)$bearer) < 1)
-    stop("Authentication failed.")
-  authHeader <- paste0("Bearer ", httr::headers(r)$bearer)
-  authHeader
-}
-
 .authWindows <- function(baseUrl, webApiUsername, webApiPassword) {
   checkmate::assertCharacter(webApiUsername, min.chars = 1, len = 1)
   checkmate::assertCharacter(webApiPassword, min.chars = 1, len = 1)
-
-  authUrl <- paste0(baseUrl, "/user/login/windows")
-  r <- httr::GET(authUrl, httr::authenticate(webApiUsername, webApiPassword, type = "ntlm"))
-  if (length(httr::headers(r)$bearer) < 1)
-    stop("Authentication failed.")
-  authHeader <- paste0("Bearer ", httr::headers(r)$bearer)
-  authHeader
-}
-
-#' Manually set the authorization http header for a WebAPI baseUrl In some cases the user may want to
-#' manually set the authorization header. An authHeader is associated with a particular baseUrl and
-#' added to to the header of all http requests sent to that url by ROhdsiWebApi.
-#'
-#' @template baseUrl
-#' @param authHeader   A character string containing a Bearer token that will be added to the header of
-#'                     all http requests sent to baseUrl. (e.g. "Bearer
-#'                     lxd9n2nsdsd2329km23mexjop02m23m23mmmsioxiis0")
-#'
-#' @export
-setAuthHeader <- function(baseUrl, authHeader) {
-  checkmate::assertCharacter(baseUrl, min.chars = 1, len = 1)
-  checkmate::assertCharacter(authHeader, min.chars = 1, len = 1)
-  if (is.null(ROWebApiEnv[[baseUrl]]))
-    ROWebApiEnv[[baseUrl]] <- list()
-  ROWebApiEnv[[baseUrl]]$authHeader <- authHeader
-}
